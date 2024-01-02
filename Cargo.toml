@@ -1,0 +1,13 @@
+[package]
+name = "wlsunblock"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+wayland-client = "0.31.1"
+wayland-protocols = "0.31.0"
+tempfile = "3.8.1"
+wayland-scanner = "0.31.0"
+wayland-backend = "0.3.2"
