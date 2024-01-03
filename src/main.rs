@@ -1,43 +1,17 @@
-// use wayland_client::{protocol::wl_output::WlOutput, Connection, Proxy};
-
 mod gamma;
-//
-// fn main() {
-//     let connection = Connection::connect_to_env().unwrap();
-//     let display = connection.display();
-//
-//     gamma::gamma_protocol::zwlr_gamma_control_v1::ZwlrGammaControlV1::set_gamma(&self, fd);
-//     return;
-// }
 
 use wayland_client::{
-    protocol::{
-        wl_output::{self, WlOutput},
-        wl_registry,
-    },
+    protocol::{wl_output, wl_registry},
     Connection, Dispatch, QueueHandle,
 };
 
-use crate::gamma::gamma_protocol::{
-    self, __interfaces::zwlr_gamma_control_v1_events, zwlr_gamma_control_v1,
-};
+use crate::gamma::gamma_protocol::zwlr_gamma_control_v1;
 
-// This struct represents the state of our app. This simple app does not
-// need any state, by this type still supports the `Dispatch` implementations.
 struct AppData {
     output: Option<wl_output::WlOutput>,
+    gamme_control: Option<zwlr_gamma_control_v1::ZwlrGammaControlV1>,
 }
 
-// Implement `Dispatch<WlRegistry, ()> for out state. This provides the logic
-// to be able to process events for the wl_registry interface.
-//
-// The second type parameter is the user-data of our implementation. It is a
-// mechanism that allows you to associate a value to each particular Wayland
-// object, and allow different dispatching logic depending on the type of the
-// associated value.
-//
-// In this example, we just use () as we don't have any value to associate. See
-// the `Dispatch` documentation for more details about this.
 impl Dispatch<wl_registry::WlRegistry, ()> for AppData {
     fn event(
         data: &mut Self,
@@ -47,9 +21,6 @@ impl Dispatch<wl_registry::WlRegistry, ()> for AppData {
         _: &Connection,
         qh: &QueueHandle<AppData>,
     ) {
-        // When receiving events from the wl_registry, we are only interested in the
-        // `global` event, which signals a new available global.
-        // When receiving this event, we just print ch its characteristics in this example.
         if let wl_registry::Event::Global {
             name,
             interface,
@@ -61,6 +32,15 @@ impl Dispatch<wl_registry::WlRegistry, ()> for AppData {
                 let output = registry.bind::<wl_output::WlOutput, _, _>(name, version, qh, ());
                 data.output = Some(output);
                 println!("got it ");
+            }
+            if interface == "zwlr_gamma_control_manager_v1" {
+                let output = registry.bind::<zwlr_gamma_control_v1::ZwlrGammaControlV1, _, _>(
+                    name,
+                    version,
+                    qh,
+                    (),
+                );
+                data.gamme_control = Some(output);
             }
         }
     }
@@ -75,14 +55,23 @@ impl Dispatch<wl_output::WlOutput, ()> for AppData {
         _: &Connection,
         _: &QueueHandle<AppData>,
     ) {
-        // When receiving events from the wl_registry, we are only interested in the
-        // `global` event, which signals a new available global.
-        // When receiving this event, we just print ch its characteristics in this example.
         print!("got it");
     }
 }
 
-// The main function of our program
+impl Dispatch<zwlr_gamma_control_v1::ZwlrGammaControlV1, ()> for AppData {
+    fn event(
+        _: &mut Self,
+        _: &zwlr_gamma_control_v1::ZwlrGammaControlV1,
+        _: zwlr_gamma_control_v1::Event,
+        _: &(),
+        _: &Connection,
+        _: &QueueHandle<AppData>,
+    ) {
+        print!("got it");
+    }
+}
+
 fn main() {
     // Create a Wayland connection by connecting to the server through the
     // environment-provided configuration.
@@ -120,10 +109,13 @@ fn main() {
     // `sync_roundtrip` will then empty the internal buffer of the queue it has been invoked
     // on, and thus invoke our `Dispatch` implementation that prints the list of advertized
     // globals.
-    let mut app_data = AppData { output: None };
+    let mut app_data = AppData {
+        output: None,
+        gamme_control: None,
+    };
+
     event_queue.roundtrip(&mut app_data).unwrap();
 
-    // zwlr_gamma_control_v1::ZwlrGammaControlV1::set_gamma(fb);
-
+    app_data.gamme_control.unwrap().set_gamma(fd);
     loop {}
 }
