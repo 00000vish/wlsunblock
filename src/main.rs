@@ -1,3 +1,8 @@
+use std::fs::File;
+use std::os::fd::AsFd;
+use std::os::unix::io::AsRawFd;
+use std::os::unix::io::BorrowedFd;
+
 mod gamma;
 
 use wayland_client::{
@@ -72,6 +77,10 @@ impl Dispatch<zwlr_gamma_control_v1::ZwlrGammaControlV1, ()> for AppData {
     }
 }
 
+fn calculate_gamma(g: f64, index: u8) -> u8 {
+    (255.0 * ((index as f64 / 255.0).powf(1.0 / g)) + 0.5).min(255.0) as u8
+}
+
 fn main() {
     // Create a Wayland connection by connecting to the server through the
     // environment-provided configuration.
@@ -116,6 +125,34 @@ fn main() {
 
     event_queue.roundtrip(&mut app_data).unwrap();
 
+    let file = File::open("path/to/file").unwrap();
+    let fd = BorrowedFd::from(file.as_fd());
+
+    let red_gamma = 0.5;
+    let green_gamma = 0.5;
+    let blue_gamma = 0.5;
+
+    let mut red_ramp = [0u8; 256];
+    let mut green_ramp = [0u8; 256];
+    let mut blue_ramp = [0u8; 256];
+
+    for i in 0..256 {
+        red_ramp[i] = calculate_gamma(red_gamma, i as u8);
+        green_ramp[i] = calculate_gamma(green_gamma, i as u8);
+        blue_ramp[i] = calculate_gamma(blue_gamma, i as u8);
+    }
+
+    let mut file = unsafe { std::fs::File::from_raw_fd(fd.into_raw_fd()) };
+
+    let red_slice = &red_ramp[..];
+    let green_slice = &green_ramp[..];
+    let blue_slice = &blue_ramp[..];
+
+    file.write_all(red_slice)?;
+    file.write_all(green_slice)?;
+    file.write_all(blue_slice)?;
+
     app_data.gamme_control.unwrap().set_gamma(fd);
+
     loop {}
 }
