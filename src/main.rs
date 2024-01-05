@@ -1,4 +1,5 @@
 use std::fs::File;
+use std::io::Write;
 use std::os::fd::AsFd;
 use std::os::unix::io::AsRawFd;
 use std::os::unix::io::BorrowedFd;
@@ -125,9 +126,6 @@ fn main() {
 
     event_queue.roundtrip(&mut app_data).unwrap();
 
-    let file = File::open("path/to/file").unwrap();
-    let fd = BorrowedFd::from(file.as_fd());
-
     let red_gamma = 0.5;
     let green_gamma = 0.5;
     let blue_gamma = 0.5;
@@ -142,17 +140,24 @@ fn main() {
         blue_ramp[i] = calculate_gamma(blue_gamma, i as u8);
     }
 
-    let mut file = unsafe { std::fs::File::from_raw_fd(fd.into_raw_fd()) };
-
     let red_slice = &red_ramp[..];
     let green_slice = &green_ramp[..];
     let blue_slice = &blue_ramp[..];
 
-    file.write_all(red_slice)?;
-    file.write_all(green_slice)?;
-    file.write_all(blue_slice)?;
+    let mut file = File::create("./something").unwrap();
+
+    _ = file.write_all(red_slice);
+    _ = file.write_all(green_slice);
+    _ = file.write_all(blue_slice);
+    _ = file.flush();
+    _ = file.sync_all();
+
+    let fd = BorrowedFd::from(file.as_fd());
 
     app_data.gamme_control.unwrap().set_gamma(fd);
+
+    let mut file = File::create("./foo.txt").unwrap();
+    _ = file.write_all(b"Hello, world!");
 
     loop {}
 }
