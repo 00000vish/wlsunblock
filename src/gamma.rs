@@ -13,7 +13,5 @@ pub mod gamma_protocol {
     }
     use self::__interfaces::*;
 
-    // This macro generates the actual types that represent the wayland objects of
-    // your custom protocol
     wayland_scanner::generate_client_code!("src/protocols/wlr-gamma-control-unstable-v1.xml");
 }

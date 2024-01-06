@@ -1,16 +1,18 @@
-use std::fs::File;
-use std::io::Write;
+use std::io::{SeekFrom, Write};
 use std::os::fd::AsFd;
-use std::os::unix::io::AsRawFd;
 use std::os::unix::io::BorrowedFd;
+use std::{fs::File, io::Seek};
 
+mod colors;
 mod gamma;
+mod models;
 
 use wayland_client::{
     protocol::{wl_output, wl_registry},
     Connection, Dispatch, QueueHandle,
 };
 
+use crate::colors::color;
 use crate::gamma::gamma_protocol::zwlr_gamma_control_v1;
 
 struct AppData {
@@ -78,8 +80,16 @@ impl Dispatch<zwlr_gamma_control_v1::ZwlrGammaControlV1, ()> for AppData {
     }
 }
 
-fn calculate_gamma(g: f64, index: u8) -> u8 {
-    (255.0 * ((index as f64 / 255.0).powf(1.0 / g)) + 0.5).min(255.0) as u8
+fn fill_gamma_table(uint16_t *table, uint32_t ramp_size, double rw, le gw, double bw, double gamma) {
+	uint16_t *r = table;
+	uint16_t *g = table + ramp_size;
+	uint16_t *b = table + 2 * ramp_size;
+	for (uint32_t i = 0; i < ramp_size; ++i) {
+		double val = (double)i / (ramp_size - 1);
+		r[i] = (uint16_t)(UINT16_MAX * pow(val * rw, 1.0 / gamma));
+		g[i] = (uint16_t)(UINT16_MAX * pow(val * gw, 1.0 / gamma));
+		b[i] = (uint16_t)(UINT16_MAX * pow(val * bw, 1.0 / gamma));
+	}
 }
 
 fn main() {
@@ -126,19 +136,11 @@ fn main() {
 
     event_queue.roundtrip(&mut app_data).unwrap();
 
-    let red_gamma = 0.5;
-    let green_gamma = 0.5;
-    let blue_gamma = 0.5;
+    let rgb = colors::color::calc_whitepoint(4200.0);
 
-    let mut red_ramp = [0u8; 256];
-    let mut green_ramp = [0u8; 256];
-    let mut blue_ramp = [0u8; 256];
-
-    for i in 0..256 {
-        red_ramp[i] = calculate_gamma(red_gamma, i as u8);
-        green_ramp[i] = calculate_gamma(green_gamma, i as u8);
-        blue_ramp[i] = calculate_gamma(blue_gamma, i as u8);
-    }
+    let red_ramp = [0u8; 256];
+    let green_ramp = [0u8; 256];
+    let blue_ramp = [0u8; 256];
 
     let red_slice = &red_ramp[..];
     let green_slice = &green_ramp[..];
@@ -150,7 +152,7 @@ fn main() {
     _ = file.write_all(green_slice);
     _ = file.write_all(blue_slice);
     _ = file.flush();
-    _ = file.sync_all();
+    _ = file.seek(SeekFrom::Start(0));
 
     let fd = BorrowedFd::from(file.as_fd());
 
