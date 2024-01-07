@@ -12,7 +12,6 @@ use wayland_client::{
     Connection, Dispatch, QueueHandle,
 };
 
-use crate::colors::color;
 use crate::gamma::gamma_protocol::zwlr_gamma_control_v1;
 
 struct AppData {
@@ -80,55 +79,16 @@ impl Dispatch<zwlr_gamma_control_v1::ZwlrGammaControlV1, ()> for AppData {
     }
 }
 
-fn fill_gamma_table(uint16_t *table, uint32_t ramp_size, double rw, le gw, double bw, double gamma) {
-	uint16_t *r = table;
-	uint16_t *g = table + ramp_size;
-	uint16_t *b = table + 2 * ramp_size;
-	for (uint32_t i = 0; i < ramp_size; ++i) {
-		double val = (double)i / (ramp_size - 1);
-		r[i] = (uint16_t)(UINT16_MAX * pow(val * rw, 1.0 / gamma));
-		g[i] = (uint16_t)(UINT16_MAX * pow(val * gw, 1.0 / gamma));
-		b[i] = (uint16_t)(UINT16_MAX * pow(val * bw, 1.0 / gamma));
-	}
-}
-
 fn main() {
-    // Create a Wayland connection by connecting to the server through the
-    // environment-provided configuration.
     let conn = Connection::connect_to_env().unwrap();
 
-    // Retrieve the WlDisplay Wayland object from the connection. This object is
-    // the starting point of any Wayland program, from which all other objects will
-    // be created.
     let display = conn.display();
 
-    // Create an event queue for our event processing
     let mut event_queue = conn.new_event_queue();
-    // And get its handle to associated new objects to it
     let qh = event_queue.handle();
 
-    // Create a wl_registry object by sending the wl_display.get_registry request
-    // This method takes two arguments: a handle to the queue the newly created
-    // wl_registry will be assigned to, and the user-data that should be associated
-    // with this registry (here it is () as we don't need user-data).
     let _registry = display.get_registry(&qh, ());
 
-    // At this point everything is ready, and we just need to wait to receive the events
-    // from the wl_registry, our callback will print the advertized globals.
-    println!("Advertized globals:");
-
-    // To actually receive the events, we invoke the `sync_roundtrip` method. This method
-    // is special and you will generally only invoke it during the setup of your program:
-    // it will block until the server has received and processed all the messages you've
-    // sent up to now.
-    //
-    // In our case, that means it'll block until the server has received our
-    // wl_display.get_registry request, and as a reaction has sent us a batch of
-    // wl_registry.global events.
-    //
-    // `sync_roundtrip` will then empty the internal buffer of the queue it has been invoked
-    // on, and thus invoke our `Dispatch` implementation that prints the list of advertized
-    // globals.
     let mut app_data = AppData {
         output: None,
         gamme_control: None,
@@ -136,30 +96,19 @@ fn main() {
 
     event_queue.roundtrip(&mut app_data).unwrap();
 
-    let rgb = colors::color::calc_whitepoint(4200.0);
+    let _rgb = colors::color::calc_whitepoint(4200.0);
 
-    let red_ramp = [0u8; 256];
-    let green_ramp = [0u8; 256];
-    let blue_ramp = [0u8; 256];
+    let mut file = File::create("./temp").unwrap();
 
-    let red_slice = &red_ramp[..];
-    let green_slice = &green_ramp[..];
-    let blue_slice = &blue_ramp[..];
-
-    let mut file = File::create("./something").unwrap();
-
-    _ = file.write_all(red_slice);
-    _ = file.write_all(green_slice);
-    _ = file.write_all(blue_slice);
+    _ = file.write_all(&mut format!("{}", _rgb.r).into_bytes());
+    _ = file.write_all(&mut format!("{}", _rgb.g).into_bytes());
+    _ = file.write_all(&mut format!("{}", _rgb.b).into_bytes());
     _ = file.flush();
     _ = file.seek(SeekFrom::Start(0));
 
     let fd = BorrowedFd::from(file.as_fd());
 
     app_data.gamme_control.unwrap().set_gamma(fd);
-
-    let mut file = File::create("./foo.txt").unwrap();
-    _ = file.write_all(b"Hello, world!");
 
     loop {}
 }
