@@ -12,7 +12,7 @@ use wayland_client::{
     Connection, Dispatch, QueueHandle,
 };
 
-use crate::gamma::gamma_protocol::zwlr_gamma_control_v1;
+use crate::gamma::zwlr_gamma_control_v1;
 
 struct AppData {
     output: Option<wl_output::WlOutput>,
@@ -96,7 +96,7 @@ fn main() {
 
     event_queue.roundtrip(&mut app_data).unwrap();
 
-    let _rgb = colors::color::calc_whitepoint(4200.0);
+    let _rgb = colors::calc_whitepoint(4200.0);
 
     let mut file = File::create("./temp").unwrap();
 
